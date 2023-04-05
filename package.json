@@ -1,6 +1,6 @@
 {
-  "name": "react-vite-ssr-tailwind-sass",
-  "description": "React Vite SSR Tailwind Sass",
+  "name": "react-vite-ssr-tailwind-sass-fastify",
+  "description": "React Vite SSR Tailwind Sass Fastify",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -12,7 +12,7 @@
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build --outDir dist/client",
     "build:server": "vite build --ssr src/entry-server.jsx --outDir dist/server",
-    "generate": "vite build --outDir dist/static && npm run build:server && node prerender",
+    "generate": "vite build --outDir dist/client && npm run build:server && node prerender",
     "serve": "NODE_ENV=production node server",
     "debug": "node --inspect-brk server"
   },

@@ -32,28 +32,27 @@ export async function createServer(root = process.cwd(), hmrPort) {
             },
             appType: 'custom',
         });
+
         await server.register(fastifyMiddie, {})
         server.use(vite.middlewares);
     } else {
         await server.register(fastifyCompress);
         await server.register(fastifyStatic, {
             root: absolutePath('dist/client'),
-            prefix: '/',
-            index: false,
+            prefix: '/'
         });
     }
 
-    server.all('*', async (request, reply) => {
+    server.all(isDev ? '*' : '/:path*', async (request, reply) => {
         const url = request.raw.url;
-        let template, render;
-        if (isDev) {
-            template = fs.readFileSync(absolutePath('index.html'), 'utf-8')
-            template = await vite.transformIndexHtml(url, template);
-            render = (await vite.ssrLoadModule('/src/entry-server.jsx')).render;
-        } else {
-            template = indexProd;
-            render = (await import('./dist/server/entry-server.js')).render;
-        }
+
+        const template = isDev
+            ? (await vite.transformIndexHtml(url, fs.readFileSync(absolutePath('index.html'), 'utf-8')))
+            : indexProd;
+        const render = isDev
+            ? (await vite.ssrLoadModule('/src/entry-server.jsx')).render
+            : (await import('./dist/server/entry-server.js')).render;
+
         const context = {};
         const appHtml = render(url, context);
         if (context.url) return reply.redirect(301, context.url);
