@@ -6,19 +6,15 @@ import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
 
-const port = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5001;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const absolutePath = (p) => path.resolve(__dirname, p);
+const isDev = process.env.NODE_ENV === 'development';
 
-export async function createServer(
-    root = process.cwd(),
-    isDev = process.env.NODE_ENV === 'development',
-    hmrPort,
-) {
-    const dirname = path.dirname(fileURLToPath(import.meta.url))
-    const absolutePath = (p) => path.resolve(dirname, p)
-
+export async function createServer(root = process.cwd(), hmrPort) {
     const indexProd = isDev ? '' : fs.readFileSync(absolutePath('dist/client/index.html'), 'utf-8')
-
     const server = fastify({logger: true});
+
     let vite;
     if (isDev) {
         vite = await (await import('vite')).createServer({
@@ -48,37 +44,36 @@ export async function createServer(
     }
 
     server.all('*', async (request, reply) => {
-        try {
-            const url = request.raw.url;
-            let template, render;
-            if (isDev) {
-                template = fs.readFileSync(absolutePath('index.html'), 'utf-8')
-                template = await vite.transformIndexHtml(url, template);
-                render = (await vite.ssrLoadModule('/src/entry-server.jsx')).render;
-            } else {
-                template = indexProd;
-                render = (await import('./dist/server/entry-server.js')).render;
-            }
-            const context = {};
-            const appHtml = render(url, context);
-
-            if (context.url) return reply.redirect(301, context.url);
-            const html = template.replace(`<!--ssr-outlet-->`, appHtml);
-            reply.status(200).header('Content-Type', 'text/html').send(html);
-        } catch (e) {
-            isDev && vite.ssrFixStacktrace(e)
-            console.log(e.stack)
-            reply.send(
-                {
-                    statusCode: 500,
-                    error: 'Internal Server Error',
-                    message: e.stack
-                }
-            )
+        const url = request.raw.url;
+        let template, render;
+        if (isDev) {
+            template = fs.readFileSync(absolutePath('index.html'), 'utf-8')
+            template = await vite.transformIndexHtml(url, template);
+            render = (await vite.ssrLoadModule('/src/entry-server.jsx')).render;
+        } else {
+            template = indexProd;
+            render = (await import('./dist/server/entry-server.js')).render;
         }
+        const context = {};
+        const appHtml = render(url, context);
+        if (context.url) return reply.redirect(301, context.url);
+        const html = template.replace(`<!--ssr-outlet-->`, appHtml);
+        return reply.status(200).header('Content-Type', 'text/html').send(html);
     });
-    return {server, vite, port}
+
+    server.setErrorHandler((error, request, reply) => {
+        console.log(error)
+        reply.send(
+            {
+                statusCode: 500,
+                error: 'Internal Server Error',
+                message: error.stack
+            }
+        )
+    })
+    return {server, vite, port: PORT};
 }
+
 createServer().then(({server, vite, port}) => {
     server.listen({
         port,
